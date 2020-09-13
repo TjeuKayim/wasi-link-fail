@@ -1,0 +1,18 @@
+name: 'WASI'
+description: 'Install WASI SDK'
+runs:
+  using: "composite"
+  steps: 
+    - run: |
+          sudo apt install libtinfo5
+          wget https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-11/wasi-sdk_11.0_amd64_ubuntu20.04.deb
+          sudo dpkg -i wasi-sdk_11.0_amd64_ubuntu20.04.deb
+          rm wasi-sdk_11.0_amd64_ubuntu20.04.deb
+      shell: bash
+    - uses: actions-rs/cargo@v1
+      with:
+        command: build
+        args: --target wasm32-wasi
+        env:
+          CC_wasm32_wasi: /opt/wasi-sdk/bin/clang
+          CARGO_TARGET_WASM32_WASI_LINKER: /opt/wasi-sdk/bin/clang

@@ -1,0 +1,46 @@
+on: [push, pull_request]
+name: Continuous Integration
+
+jobs:
+  build-45:
+    name: Build Rust 1.45.2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.45.2
+          profile: minimal
+          target: wasm32-wasi
+          override: true
+      - uses: TjeuKayim/wasi-link-fail@v1
+  build-46:
+    name: Build Rust 1.46.0
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.46.0
+          profile: minimal
+          target: wasm32-wasi
+          override: true
+      - uses: TjeuKayim/wasi-link-fail@v1
+  build-nightly:
+    name: Build Rust nightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          profile: minimal
+          target: wasm32-wasi
+          override: true
+      - uses: TjeuKayim/wasi-link-fail@v1
