@@ -1,0 +1,2 @@
+[target.wasm32-wasi]
+linker = "/opt/wasi-sdk/bin/clang"
