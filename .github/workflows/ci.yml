@@ -133,3 +133,29 @@ jobs:
         env:
           CC_wasm32_wasi: /opt/wasi-sdk/bin/clang
           CARGO_TARGET_WASM32_WASI_LINKER: /opt/wasi-sdk/bin/clang
+  build-wasi-sdk16:
+    name: Build Rust nightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          profile: minimal
+          target: wasm32-wasi
+          override: true
+      - run: |
+          sudo apt install libtinfo5
+          wget https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-16/wasi-sdk_16.0_amd64.deb
+          sudo dpkg -i wasi-sdk_16.0_amd64.deb
+          rm wasi-sdk_16.0_amd64.deb
+        shell: bash
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --target wasm32-wasi
+        env:
+          CC_wasm32_wasi: /opt/wasi-sdk/bin/clang
+          CARGO_TARGET_WASM32_WASI_LINKER: /opt/wasi-sdk/bin/clang
