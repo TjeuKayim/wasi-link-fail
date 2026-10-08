@@ -1,187 +1,111 @@
-on: [push, pull_request, workflow_dispatch]
 name: Continuous Integration
 
+on: [push, pull_request, workflow_dispatch]
+
 jobs:
-  build-45:
-    name: Build Rust 1.45.2
-    runs-on: ubuntu-latest
+  build:
+    name: Rust ${{ matrix.rust }} / WASI SDK ${{ matrix.wasi_sdk }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Legacy Rust versions use wasm32-wasi
+          - rust: "1.45.2"
+            target: wasm32-wasi
+            wasi_sdk: 11
+            os: ubuntu-22.04
+            rustflags: ""
+
+          - rust: "1.46.0"
+            target: wasm32-wasi
+            wasi_sdk: 11
+            os: ubuntu-22.04
+            rustflags: ""
+
+          - rust: "1.46.0"
+            target: wasm32-wasi
+            wasi_sdk: 11
+            os: ubuntu-22.04
+            rustflags: "-C target-feature=-crt-static -C link-args=-Wl,-v"
+
+          - rust: "1.47.0"
+            target: wasm32-wasi
+            wasi_sdk: 11
+            os: ubuntu-22.04
+            rustflags: ""
+
+          - rust: "1.65.0"
+            target: wasm32-wasi
+            wasi_sdk: 16
+            os: ubuntu-22.04
+            rustflags: ""
+
+          # Current stable Rust (1.99.0)
+          - rust: "1.99.0"
+            target: wasm32-wasip1
+            wasi_sdk: 34
+            os: ubuntu-24.04
+            rustflags: ""
+
+          # Nightly uses wasm32-wasip1
+          - rust: nightly
+            target: wasm32-wasip1
+            wasi_sdk: 34
+            os: ubuntu-24.04
+            rustflags: ""
+
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: 1.45.2
-          profile: minimal
-          target: wasm32-wasi
-          override: true
-      - run: |
-          sudo apt install libtinfo5
-          wget https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-11/wasi-sdk_11.0_amd64_ubuntu20.04.deb
-          sudo dpkg -i wasi-sdk_11.0_amd64_ubuntu20.04.deb
-          rm wasi-sdk_11.0_amd64_ubuntu20.04.deb
+        run: |
+          rustup toolchain install "${{ matrix.rust }}" \
+            --profile minimal \
+            --target "${{ matrix.target }}"
+          rustup default "${{ matrix.rust }}"
+          rustc --version
+
+      - name: Install legacy WASI SDK
+        if: matrix.wasi_sdk == 11 || matrix.wasi_sdk == 16
         shell: bash
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --target wasm32-wasi
-        env:
-          CC_wasm32_wasi: /opt/wasi-sdk/bin/clang
-          CARGO_TARGET_WASM32_WASI_LINKER: /opt/wasi-sdk/bin/clang
-  build-46:
-    name: Build Rust 1.46.0
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: 1.46.0
-          profile: minimal
-          target: wasm32-wasi
-          override: true
-      - run: |
-          sudo apt install libtinfo5
-          wget https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-11/wasi-sdk_11.0_amd64_ubuntu20.04.deb
-          sudo dpkg -i wasi-sdk_11.0_amd64_ubuntu20.04.deb
-          rm wasi-sdk_11.0_amd64_ubuntu20.04.deb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libtinfo5
+
+          if [ "${{ matrix.wasi_sdk }}" = "11" ]; then
+            URL="https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-11/wasi-sdk_11.0_amd64_ubuntu20.04.deb"
+          else
+            URL="https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-16/wasi-sdk_16.0_amd64.deb"
+          fi
+
+          wget -q "$URL" -O wasi-sdk.deb
+          sudo dpkg -i wasi-sdk.deb
+          rm wasi-sdk.deb
+
+      - name: Install modern WASI SDK
+        if: matrix.wasi_sdk == 34
         shell: bash
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --target wasm32-wasi
-        env:
-          CC_wasm32_wasi: /opt/wasi-sdk/bin/clang
-          CARGO_TARGET_WASM32_WASI_LINKER: /opt/wasi-sdk/bin/clang
-  build-46v:
-    name: Build Rust 1.46.0 with -Wl,-v
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: 1.46.0
-          profile: minimal
-          target: wasm32-wasi
-          override: true
-      - run: |
-          sudo apt install libtinfo5
-          wget https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-11/wasi-sdk_11.0_amd64_ubuntu20.04.deb
-          sudo dpkg -i wasi-sdk_11.0_amd64_ubuntu20.04.deb
-          rm wasi-sdk_11.0_amd64_ubuntu20.04.deb
+        run: |
+          URL="https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34/wasi-sdk-34.0-x86_64-linux.tar.gz"
+
+          wget -q "$URL" -O wasi-sdk.tar.gz
+          sudo mkdir -p /opt/wasi-sdk
+          sudo tar -xzf wasi-sdk.tar.gz \
+            -C /opt/wasi-sdk --strip-components=1
+          rm wasi-sdk.tar.gz
+
+      - name: Configure WASI compiler
         shell: bash
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --target wasm32-wasi
+        run: |
+          echo "CC_${{ matrix.target }}=/opt/wasi-sdk/bin/clang" >> "$GITHUB_ENV"
+
+          TARGET_UPPER=$(echo "${{ matrix.target }}" | tr '[:lower:]-' '[:upper:]_')
+          echo "CARGO_TARGET_${TARGET_UPPER}_LINKER=/opt/wasi-sdk/bin/clang" >> "$GITHUB_ENV"
+
+      - name: Build
         env:
-          CC_wasm32_wasi: /opt/wasi-sdk/bin/clang
-          CARGO_TARGET_WASM32_WASI_LINKER: /opt/wasi-sdk/bin/clang
-          RUSTFLAGS: '-C target-feature=-crt-static -C link-args=-Wl,-v'
-  build-47:
-    name: Build Rust 1.47.0
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: 1.47.0
-          profile: minimal
-          target: wasm32-wasi
-          override: true
-      - run: |
-          sudo apt install libtinfo5
-          wget https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-11/wasi-sdk_11.0_amd64_ubuntu20.04.deb
-          sudo dpkg -i wasi-sdk_11.0_amd64_ubuntu20.04.deb
-          rm wasi-sdk_11.0_amd64_ubuntu20.04.deb
-        shell: bash
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --target wasm32-wasi
-        env:
-          CC_wasm32_wasi: /opt/wasi-sdk/bin/clang
-          CARGO_TARGET_WASM32_WASI_LINKER: /opt/wasi-sdk/bin/clang
-  build-nightly:
-    name: Build Rust nightly
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          profile: minimal
-          target: wasm32-wasi
-          override: true
-      - run: |
-          sudo apt install libtinfo5
-          wget https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-11/wasi-sdk_11.0_amd64_ubuntu20.04.deb
-          sudo dpkg -i wasi-sdk_11.0_amd64_ubuntu20.04.deb
-          rm wasi-sdk_11.0_amd64_ubuntu20.04.deb
-        shell: bash
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --target wasm32-wasi
-        env:
-          CC_wasm32_wasi: /opt/wasi-sdk/bin/clang
-          CARGO_TARGET_WASM32_WASI_LINKER: /opt/wasi-sdk/bin/clang
-  build-nightly-wasi-sdk16:
-    name: Build Rust nightly with wasi-sdk16
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          profile: minimal
-          target: wasm32-wasi
-          override: true
-      - run: |
-          sudo apt install libtinfo5
-          wget https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-16/wasi-sdk_16.0_amd64.deb
-          sudo dpkg -i wasi-sdk_16.0_amd64.deb
-          rm wasi-sdk_16.0_amd64.deb
-        shell: bash
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --target wasm32-wasi
-        env:
-          CC_wasm32_wasi: /opt/wasi-sdk/bin/clang
-          CARGO_TARGET_WASM32_WASI_LINKER: /opt/wasi-sdk/bin/clang
-  build-65-wasi-sdk16:
-    name: Build Rust 1.65.0 with wasi-sdk16
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: 1.65.0
-          profile: minimal
-          target: wasm32-wasi
-          override: true
-      - run: |
-          sudo apt install libtinfo5
-          wget https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-16/wasi-sdk_16.0_amd64.deb
-          sudo dpkg -i wasi-sdk_16.0_amd64.deb
-          rm wasi-sdk_16.0_amd64.deb
-        shell: bash
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --target wasm32-wasi
-        env:
-          CC_wasm32_wasi: /opt/wasi-sdk/bin/clang
-          CARGO_TARGET_WASM32_WASI_LINKER: /opt/wasi-sdk/bin/clang
+          RUSTFLAGS: ${{ matrix.rustflags }}
+        run: cargo build --target "${{ matrix.target }}"
